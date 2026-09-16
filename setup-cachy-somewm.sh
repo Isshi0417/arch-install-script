@@ -270,6 +270,12 @@ pacman -S --needed --noconfirm paru
 
 sudo -i -u "$NEW_USER" paru -S --needed --noconfirm somewm
 
+if [ -f /sys/class/dmi/id/sys_vendor ] && grep -qi "ASUSTeK\|ASUS" /sys/class/dmi/id/sys_vendor; then
+    pacman -S --needed --noconfirm asusctl supergfxctl rog-control-center 2>/dev/null || sudo -i -u "$NEW_USER" paru -S --needed --noconfirm asusctl supergfxctl rog-control-center
+    systemctl enable asusd 2>/dev/null || true
+    systemctl enable supergfxd 2>/dev/null || true
+fi
+
 ln -sf /usr/bin/foot /usr/local/bin/xterm
 
 sudo -i -u "$NEW_USER" mkdir -p /home/"$NEW_USER"/.config/somewm
