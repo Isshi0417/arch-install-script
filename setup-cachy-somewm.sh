@@ -44,6 +44,9 @@ btrfs subvolume create /mnt/@home
 btrfs subvolume create /mnt/@snapshots
 btrfs subvolume create /mnt/@var_log
 btrfs subvolume create /mnt/@var_cache
+btrfs subvolume create /mnt/@var_tmp
+btrfs subvolume create /mnt/@containers
+btrfs subvolume create /mnt/@games
 
 umount /mnt
 
@@ -51,13 +54,18 @@ BTRFS_OPTS="noatime,compress=zstd:3,ssd,discard=async,space_cache=v2"
 
 mount -o "${BTRFS_OPTS},subvol=@" "$ROOT_PART" /mnt
 
-mkdir -p /mnt/{boot,home,.snapshots,var/log,var/cache}
+mkdir -p /mnt/{boot,home,.snapshots,var/log,var/cache,var/tmp,var/lib/containers}
 
 mount -o "${BTRFS_OPTS},subvol=@home" "$ROOT_PART" /mnt/home
 mount -o "${BTRFS_OPTS},subvol=@snapshots" "$ROOT_PART" /mnt/.snapshots
 mount -o "${BTRFS_OPTS},subvol=@var_log" "$ROOT_PART" /mnt/var/log
 mount -o "${BTRFS_OPTS},subvol=@var_cache" "$ROOT_PART" /mnt/var/cache
+mount -o "${BTRFS_OPTS},subvol=@var_tmp" "$ROOT_PART" /mnt/var/tmp
+mount -o "${BTRFS_OPTS},subvol=@containers" "$ROOT_PART" /mnt/var/lib/containers
 mount "$EFI_PART" /mnt/boot
+
+mkdir -p /mnt/home/"$NEW_USER"/.local/share/Steam
+mount -o "${BTRFS_OPTS},subvol=@games" "$ROOT_PART" /mnt/home/"$NEW_USER"/.local/share/Steam
 
 pacstrap -K /mnt base base-devel git curl wget tar xz btrfs-progs pciutils linux-firmware networkmanager iwd efibootmgr pacman-contrib
 
@@ -87,6 +95,9 @@ echo "root:$USER_PASSWORD" | chpasswd
 useradd -m -G wheel,video,audio,input -s /bin/bash "$NEW_USER"
 echo "$NEW_USER:$USER_PASSWORD" | chpasswd
 chown -R "$NEW_USER":"$NEW_USER" /home/"$NEW_USER"
+
+touch /etc/subuid /etc/subgid
+usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$NEW_USER" 2>/dev/null || true
 
 echo "%wheel ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-installer-wheel
 
@@ -150,7 +161,14 @@ btrfs subvolume delete /.snapshots
 mkdir -p /.snapshots
 mount -a
 chmod 750 /.snapshots
+
 sed -i 's/ALLOW_GROUPS=""/ALLOW_GROUPS="wheel"/' /etc/snapper/configs/root
+sed -i 's/NUMBER_LIMIT="50"/NUMBER_LIMIT="10"/' /etc/snapper/configs/root
+sed -i 's/NUMBER_LIMIT_IMPORTANT="10"/NUMBER_LIMIT_IMPORTANT="10"/' /etc/snapper/configs/root
+sed -i 's/TIMELINE_LIMIT_HOURLY="10"/TIMELINE_LIMIT_HOURLY="5"/' /etc/snapper/configs/root
+sed -i 's/TIMELINE_LIMIT_DAILY="10"/TIMELINE_LIMIT_DAILY="7"/' /etc/snapper/configs/root
+sed -i 's/TIMELINE_LIMIT_WEEKLY="0"/TIMELINE_LIMIT_WEEKLY="2"/' /etc/snapper/configs/root
+sed -i 's/TIMELINE_LIMIT_MONTHLY="10"/TIMELINE_LIMIT_MONTHLY="0"/' /etc/snapper/configs/root
 
 sed -i 's/\\(filesystems\\)/btrfs btrfs-overlayfs \\1/' /etc/mkinitcpio.conf
 mkinitcpio -P
@@ -242,12 +260,17 @@ pacman -S --needed --noconfirm \\
     bat \\
     jq \\
     btop \\
-    docker \\
-    docker-compose
+    podman \\
+    podman-compose \\
+    podman-docker \\
+    buildah \\
+    skopeo \\
+    crun \\
+    fuse-overlayfs
+
+systemctl enable podman.socket
 
 sudo -i -u "$NEW_USER" xdg-user-dirs-update
-usermod -aG docker "$NEW_USER"
-systemctl enable docker
 
 pacman -S --needed --noconfirm \\
     xdg-desktop-portal \\
