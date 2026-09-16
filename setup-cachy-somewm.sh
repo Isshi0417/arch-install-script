@@ -221,6 +221,19 @@ pacman -S --needed --noconfirm \\
     lutris
 
 pacman -S --needed --noconfirm \\
+    firefox \\
+    thunar \\
+    tumbler \\
+    gvfs \\
+    pavucontrol \\
+    pamixer \\
+    playerctl \\
+    brightnessctl \\
+    network-manager-applet \\
+    blueman \\
+    papirus-icon-theme \\
+    adwaita-icon-theme \\
+    xdg-user-dirs \\
     foot \\
     neovim \\
     ripgrep \\
@@ -232,6 +245,7 @@ pacman -S --needed --noconfirm \\
     docker \\
     docker-compose
 
+sudo -i -u "$NEW_USER" xdg-user-dirs-update
 usermod -aG docker "$NEW_USER"
 systemctl enable docker
 
@@ -256,7 +270,33 @@ pacman -S --needed --noconfirm paru
 
 sudo -i -u "$NEW_USER" paru -S --needed --noconfirm somewm
 
+ln -sf /usr/bin/foot /usr/local/bin/xterm
+
+sudo -i -u "$NEW_USER" mkdir -p /home/"$NEW_USER"/.config/somewm
+
+if [ -f /etc/xdg/somewm/rc.lua ]; then
+    cp /etc/xdg/somewm/rc.lua /home/"$NEW_USER"/.config/somewm/rc.lua
+elif [ -f /etc/xdg/awesome/rc.lua ]; then
+    cp /etc/xdg/awesome/rc.lua /home/"$NEW_USER"/.config/somewm/rc.lua
+fi
+
+if [ -f /home/"$NEW_USER"/.config/somewm/rc.lua ]; then
+    sed -i 's/terminal = "xterm"/terminal = "foot"/' /home/"$NEW_USER"/.config/somewm/rc.lua
+    echo 'awful.spawn.with_shell(gears.filesystem.get_configuration_dir() .. "autostart.sh")' >> /home/"$NEW_USER"/.config/somewm/rc.lua
+fi
+
+cat <<AUTO_EOF > /home/"$NEW_USER"/.config/somewm/autostart.sh
+#!/usr/bin/env bash
+/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
+nm-applet &
+blueman-applet &
+AUTO_EOF
+chmod +x /home/"$NEW_USER"/.config/somewm/autostart.sh
+chown -R "$NEW_USER":"$NEW_USER" /home/"$NEW_USER"
+
 cat <<ENV_EOF >> /etc/environment
+TERMINAL="foot"
+BROWSER="firefox"
 QT_QPA_PLATFORM="wayland;xcb"
 GDK_BACKEND="wayland,x11,*"
 SDL_VIDEODRIVER="wayland"
@@ -265,14 +305,6 @@ ELECTRON_OZONE_PLATFORM_HINT="auto"
 XDG_CURRENT_DESKTOP="somewm:wlroots"
 XDG_SESSION_TYPE="wayland"
 ENV_EOF
-
-sudo -i -u "$NEW_USER" mkdir -p /home/"$NEW_USER"/.config/somewm
-cat <<AUTO_EOF > /home/"$NEW_USER"/.config/somewm/autostart.sh
-#!/usr/bin/env bash
-/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
-AUTO_EOF
-chmod +x /home/"$NEW_USER"/.config/somewm/autostart.sh
-chown -R "$NEW_USER":"$NEW_USER" /home/"$NEW_USER"
 
 rm -f /etc/sudoers.d/99-installer-wheel
 echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/99-wheel
